@@ -1,0 +1,265 @@
+---
+title: "Sf_Devo_Project"
+output: html_document
+---
+
+
+```{r}
+##packages  
+library(lattice)
+library(readxl)
+library(ggplot2) #plots
+library(dplyr) #data wrangling#
+library(tidyverse)
+library(gapminder)
+
+#Loaded Sheet 1 - DiASP derived data
+counts = read_excel("Sf_TempExp_NMCounts_DiASP_10.29.21.xlsx")
+summary(counts) 
+
+#Loaded Sheet 2 - SEM derived data 
+SEM = read_excel("SF_T2_Jan22SEM.xlsx")
+summary(SEM) #n = 171
+```
+
+
+
+```{r}
+#Diasp data is from temperature experiment, so separating out just the mid-treatment fish to be consistent with banks the 2018 series were pulled from 
+T2_counts = subset(counts, counts$TREATMENT == "2")
+summary(T2_counts) #n = 47 
+```
+
+
+
+```{r}
+##creating subsets for analyses and graphs for each line of neuromasts within the SEM data 
+MD <- subset(SEM, LINE =="MD")
+summary(MD)
+
+md <- subset(MD, SL>17 & SL<25)
+summary(md)
+
+SO <- subset(SEM, LINE=="SO")
+summary(SO)
+so <- subset(SO,SL>17)
+summary(so)
+
+DDSO <- subset(SEM, LINE=="DDSO")
+summary(DDSO)
+
+CNs <- subset(SEM, LINE=="MD" & LINE =="SO")
+```
+
+
+
+```{r}
+#Linear model for SN # vs. Sl (Fig 3)
+SN = lm(data=T2_counts, formula = 0+TOTAL_SN~SL)
+summary(SN)
+
+##Determining the breaking point for the # of CNs vs. SL -> when does CN # stabilize? Figure 3
+library(segmented)
+fit <- lm(TOTAL_CN~SL, data=T2_counts)
+segmented.fit <- segmented(fit, seg.Z = ~SL, psi=21)
+summary(segmented.fit)
+
+#Creating data sets based on breaking point so I can graph the lines and get the linear models for before and after the point 
+small <- subset(T2_counts, T2_counts$SL<23.6)
+large <- subset(T2_counts, T2_counts$SL>23.5)
+
+#Linear model for before the breaking point - Figure 3
+before <- lm(TOTAL_CN~SL, data=small)
+summary(before)
+
+#Linear model for after the breaking point - Figure 3 
+after <- lm(TOTAL_CN~SL, data=large)
+summary(after)
+```
+
+```{r}
+#Linear model for PM CN size vs. SL (Fig 4)
+MDlm = lm(data=md, formula = NM_LENGTH~SL)
+summary(MDlm) 
+
+#Linear model for SO CN size vs. SL (Fig 4)
+SOlm = lm(data=so, formula = NM_LENGTH~SL)
+summary(SOlm) 
+
+#Linear model for ddso = adl SN size vs. SL 
+DDSOlm = lm(data=DDSO, formula = NM_LENGTH~SL)
+summary(DDSOlm) 
+
+###Nonparametric test for difference in size between CNs and SNs
+shapiro.test(SEM$NM_LENGTH) ##not normal 
+
+kruskal.test(data=SEM, NM_LENGTH ~ NM_TYPE)
+
+#Testing whether neuromast shape is different between CNs and SNs
+shapiro.test(SEM$NM_RATIO) #not normal, so non-parametric 
+
+kruskal.test(data = SEM, NM_RATIO~NM_TYPE)
+
+```
+
+```{r}
+#Linear models for % neuromast area covered by the sensory strip vs. SL (Fig 4)
+
+SS_MD = lm(data=MD, formula = SS_PERCENT~SL)
+summary(SS_MD)
+
+SS_SO = lm(data=SO, formula = SS_PERCENT~SL)
+summary(SS_SO)
+
+SS_DDSO = lm(data=DDSO, formula = SS_PERCENT~SL)
+summary(SS_DDSO)
+```
+
+```{r}
+#Manuscript Figure 3A 
+library(ggplot2)
+plot1 <- ggplot(data = T2_counts, aes(x = SL, y=TOTAL_CN)) + 
+  geom_smooth(method="lm", data=small, se=FALSE, col="red1") +
+  geom_smooth(method="lm", data = large, se=FALSE, col="red1")+
+  geom_point() + #geom_point adds points to show the plotted data points, and size is the size of the points
+  geom_jitter()+
+  scale_y_continuous(breaks=seq(0,60,5))+
+  xlab("Fish Length (mm SL)") +
+  ylab("Number of CNs") +
+  theme_bw() +
+  theme(axis.line = element_line(color = "black", size = 1),
+        axis.ticks = element_line(color="black", size = 1),
+        axis.ticks.length = unit(1, "mm"),
+        axis.text.x = element_text(color="black", size = 14, angle = 0, vjust = 1, hjust = 0.5),
+        axis.title.x = element_text(color= "black", size=14),
+        axis.text.y = element_text(color="black", size = 14),
+        axis.title.y = element_text(color= "black", size=14),
+        legend.position="none",
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+  
+plot1
+
+ggsave("CNOntogeny_T2.tiff", width = 6, height = 4) #This saves it to active directory
+```
+
+```{r}
+#Manuscript Figure 3B 
+plot2 <- ggplot(data = T2_counts, aes(x = SL, y=TOTAL_SN)) + 
+  geom_smooth(method = "lm", se=FALSE, col="dodgerblue2") +
+  geom_point() + #geom_point adds points to show the plotted data points, and size is the size of the points
+  geom_jitter()+
+  scale_y_continuous(breaks=seq(0,120,20))+
+  xlab("Fish Length (mm SL)") +
+  ylab("Number of SNs") +
+  theme_bw() +
+  theme(axis.line = element_line(color = "black", size = 1),
+        axis.ticks = element_line(color="black", size = 1),
+        axis.ticks.length = unit(1, "mm"),
+        axis.text.x = element_text(color="black", size = 14, angle = 0, vjust = 1, hjust = 0.5),
+        axis.title.x = element_text(color= "black", size=14),
+        axis.text.y = element_text(color="black", size = 14),
+        axis.title.y = element_text(color= "black", size=14),
+        legend.position="none",
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+  
+plot2
+
+ggsave("T2_SN_Ontogeny.tiff", width = 6, height = 4)
+```
+
+
+
+```{r}
+##NM shape between CNs vs SNs, Figure 5 
+library(ggplot2)
+plot3 <- ggplot(data=SEM, aes(x=NM_TYPE, y=NM_RATIO, color = as.factor(NM_TYPE))) + geom_boxplot(outlier.shape = 1) +
+     stat_summary(fun.y=mean, colour="black", geom="point", 
+                           shape=20, size=3,show_guide = FALSE)+
+    scale_color_manual(values = c("red1", "dodgerblue2")) +
+  xlab(" ") +
+  ylab("Neuromast Shape (Length:Width)") +
+  theme_bw() +
+  theme(axis.ticks = element_line(color="black"),
+        axis.ticks.length = unit(1, "mm"),
+        axis.text.x = element_text(color="black", size = 11, angle = 0, vjust = 1, hjust = 0.5),
+        axis.text.y = element_text(color="black", size = 11),
+        legend.position="none")
+  
+plot3 #n = 124
+
+ggsave("NMShape_boxplot.tiff", width = 2, height = 4) #This saves it to active directory
+```
+
+
+
+```{r}
+#Neuromast size vs. SL for CNs and SNs with linear models, Figure 4A 
+plot4 <- ggplot(data = SEM, aes(x = SL, y=NM_LENGTH, group = LINE)) + 
+  geom_smooth(method="lm", data=MD, se=FALSE, col="red1", linetype = "dotted")+
+  geom_smooth(method="lm", data=SO, se=FALSE, col="red1", linetype = "dashed")+
+  geom_smooth(method="lm", data=DDSO, se=FALSE, col="dodgerblue2")+
+  geom_point(aes(shape=LINE, color=LINE)) + 
+  scale_shape_manual(labels = c("adl", "MD", "SO"),values=c(3, 16, 17))+
+  scale_color_manual(labels = c("adl", "MD", "SO"), 
+                     values = c("dodgerblue2", "red1", "red1")) +
+  scale_y_continuous(breaks=seq(0,120,20))+
+  xlab("Fish Length (mm SL)") +
+  ylab("Neuromast Length (microns)") +
+  theme_bw() +
+  theme(axis.line = element_line(color = "black", size = 1),
+        axis.ticks = element_line(color="black", size = 1),
+        axis.ticks.length = unit(1, "mm"),
+        axis.text.x = element_text(color="black", size = 14, angle = 0, vjust = 1, hjust = 0.5),
+        axis.title.x = element_text(color= "black", size=16),
+        axis.text.y = element_text(color="black", size = 14),
+        axis.title.y = element_text(color= "black", size=16),
+        legend.position = c(0.1, 0.85),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+  
+plot4
+
+ggsave("NMSizeOntogenyT2.tiff", width = 6, height = 4) #This saves it to active directory
+```
+
+
+
+```{r}
+#% neuromast covered by the sensory strip vs. SL, Figure 4B 
+plot5 <- ggplot(data = SEM, aes(x = SL, group=LINE, y=SS_PERCENT)) + 
+  geom_smooth(method="lm", data=MD, se=FALSE, col="red1", linetype = "dotted")+
+  geom_smooth(method="lm", data=SO, se=FALSE, col="red1", linetype= "dashed")+
+  geom_smooth(method="lm", data=DDSO, se=FALSE, col="dodgerblue2")+
+  geom_point(aes(shape=LINE, color=LINE)) + 
+  scale_shape_manual(labels = c("ddso", "MD", "SO"),values=c(3, 16, 17))+
+  scale_color_manual(labels = c("ddso", "MD", "SO"), 
+                     values = c("dodgerblue2", "red1", "red1")) +
+  scale_y_continuous(breaks=seq(0,100,25)) +
+  xlab("Fish Length (mm SL)") +
+  ylab("Sensory Strip as % Neuromast Area") +
+  theme_bw() +
+  theme(axis.line = element_line(color = "black", size = 1),
+        axis.ticks = element_line(color="black", size = 1),
+        axis.ticks.length = unit(1, "mm"),
+        axis.text.x = element_text(color="black", size = 14, angle = 0, vjust = 1, hjust = 0.5),
+        axis.title.x = element_text(color= "black", size=16),
+        axis.text.y = element_text(color="black", size = 14),
+        axis.title.y = element_text(color= "black", size=16),
+        legend.position = "none",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+  
+plot5
+
+ggsave("SSOntogenyT2.tiff", width = 6, height = 4)
+```
